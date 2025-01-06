@@ -308,6 +308,14 @@ plot(fire1$TIME_SINCE_FIRE_DAYS,fire1$FIRE_FREQUENCY) #Log transform TIME_SINCE_
 comm4<-full_join(comm3,fire1,by = c('TIME_OF_YEAR','SITE')) %>% 
   mutate(TIME_SINCE_FIRE_DAYS=log(TIME_SINCE_FIRE_DAYS))
 
+head(comm4)
+
+ggplot(comm4, aes(x=TIME_SINCE_FIRE_DAYS, y=SCAM)) +
+  geom_point()+
+  geom_smooth(method="lm")+
+  facet_wrap(~TIME_OF_YEAR)
+
+
 #ADD IN TEMP DATA
 temp[320,1]="9/17/2022"
 temp[320,2]="14:00"
@@ -380,7 +388,7 @@ frao_Allr <- data.frame(data.frame(matrix(ncol = 9, nrow = 60)))
 for (i in 1:999) {#For each row in the matrix (for each site)
   #select randomly, as many species as the species richness of the site:
   comm3rand <- comm3
-  colnames(comm3rand) <- sample(colnames(comm3), replace=F)
+  #colnames(comm3rand) <- sample(colnames(comm3), replace=F)
   comm3rand <- comm3rand %>% select(order(colnames(.)))
    
   t8rand <- t8
@@ -418,7 +426,7 @@ frao_BVr <- data.frame(data.frame(matrix(ncol = 9, nrow = 60)))
 for (i in 1:999) {#For each row in the matrix (for each site)
   #select randomly, as many species as the species richness of the site:
   comm3rand <- comm3
-  colnames(comm3rand) <- sample(colnames(comm3), replace=F) 
+  #colnames(comm3rand) <- sample(colnames(comm3), replace=F) 
   comm3rand <- comm3rand %>% select(order(colnames(.)))
   
   t8rand <- t8
@@ -448,7 +456,7 @@ frao_ISr <- data.frame(data.frame(matrix(ncol = 9, nrow = 60)))
 for (i in 1:999) {#For each row in the matrix (for each site)
   #select randomly, as many species as the species richness of the site:
   comm3rand <- comm3
-  colnames(comm3rand) <- sample(colnames(comm3), replace=F) 
+  #colnames(comm3rand) <- sample(colnames(comm3), replace=F) 
   comm3rand <- comm3rand %>% select(order(colnames(.)))
   
   t8rand <- t8
@@ -478,7 +486,7 @@ frao_CNr <- data.frame(data.frame(matrix(ncol = 9, nrow = 60)))
 for (i in 1:999) {#For each row in the matrix (for each site)
   #select randomly, as many species as the species richness of the site:
   comm3rand <- comm3
-  colnames(comm3rand) <- sample(colnames(comm3), replace=F) 
+  #colnames(comm3rand) <- sample(colnames(comm3), replace=F) 
   comm3rand <- comm3rand %>% select(order(colnames(.)))
   
   t8rand <- t8
@@ -508,7 +516,7 @@ frao_SFr <- data.frame(data.frame(matrix(ncol = 9, nrow = 60)))
 for (i in 1:999) {#For each row in the matrix (for each site)
   #select randomly, as many species as the species richness of the site:
   comm3rand <- comm3
-  colnames(comm3rand) <- sample(colnames(comm3), replace=F) 
+  #colnames(comm3rand) <- sample(colnames(comm3), replace=F) 
   comm3rand <- comm3rand %>% select(order(colnames(.)))
   
   t8rand <- t8
@@ -562,17 +570,17 @@ raoSESFirefig <- sesTrait <- ggplot(comm_roa2, aes(x=TIME_SINCE_FIRE_DAYS, y=SES
   theme(legend.position = c(0.85, 0.2), # c(0,0) bottom left, c(1,1) top-right.
         legend.background = element_rect(fill = "white", colour = NA))
 
-ggsave("raoSESfig.tiff", raoSESfig, width=8, height=6, units="in", dpi=600, compression = "lzw", path="Outputs")
+ggsave("raoSESfig_revised.tiff", raoSESfig, width=8, height=6, units="in", dpi=600, compression = "lzw", path="Outputs")
 
 
-glmrao0 <- glmmTMB(SES ~ Trait*TIME_OF_YEAR + (1|SITE) + (1|Trait), data=comm_roa2, dispformula = ~Trait)
-glmrao <- glmmTMB(SES ~ Trait*TIME_OF_YEAR + (1|SITE/TIME_OF_YEAR), data=comm_roa2)
-anova(glmrao0,glmrao)
-Anova(glmrao)
-summary(glmrao)
+glmrao0 <- glmmTMB(SES ~ Trait*TIME_OF_YEAR + (1|SITE/Trait), data=comm_roa2, dispformula = ~Trait)
+#glmrao <- glmmTMB(SES ~ Trait*TIME_OF_YEAR + (1|SITE/TIME_OF_YEAR), data=comm_roa2)
+#anova(glmrao0,glmrao)
+Anova(glmrao0)
+summary(glmrao0)
 
-emmeans(glmrao, ~Trait|TIME_OF_YEAR, infer=T)
-emmeans(glmrao, ~TIME_OF_YEAR, infer=T)
+emmeans(glmrao0, ~Trait|TIME_OF_YEAR, infer=T)
+emmeans(glmrao0, ~Trait, infer=T)
 
 #FEEDING NICHE AND TRAIT MATCHING########################################################################
 #LOAD IN PLANT DATA AND PROCESS PLANT DATA
@@ -693,7 +701,7 @@ fn1 <- exp4 %>%
   scale_fill_viridis(discrete = T,  option = "plasma") +
   theme_bw(base_size = 16) +
   ylab("Weighted mean LDMC in diet (mg/g)") +
-  xlab("Weighted mean SLA in diet (mm^2/mg)") +
+  xlab("Weighted mean C:N in diet ") +
   labs(fill = "Subfamily")+
   annotate(geom="text", label="A)", x=20, y=530, size=6)+
   theme(
@@ -729,18 +737,142 @@ fn2 <- exp4 %>%
     legend.box.background = element_rect(fill = "transparent"), # get rid of legend panel bg
     legend.text = element_text(size=15));fn2
 
+
+## PLOT AVAILABLE PLANT TRAIT SPACE
+ptraitave<-ptrait %>% group_by(SPECIES) %>% 
+  #summarise(CN_RATIO_M=mean(CN_RATIO, na.rm=T), LDMC_M=mean(LDMC,na.rm=T), SLA_M=mean(SLA,na.rm=T),
+   #         CN_RATIO_SD=sd(CN_RATIO, na.rm=T), LDMC_SD=sd(LDMC,na.rm=T), SLA_SD=sd(SLA,na.rm=T))%>% 
+  mutate(FuncGroup=case_when(SPECIES=='AMAR' |
+                               SPECIES=='CRAR'  |
+                               SPECIES=='ERAR'  |
+                               SPECIES=='ERTO'  |
+                               SPECIES=='MOPU'  |
+                               SPECIES=='PIGR'  |
+                               SPECIES=='SOOD'  |
+                               SPECIES=='STSY'~'Forb',
+                             SPECIES=='CHNI' |
+                               SPECIES=='LEHI'  |
+                               SPECIES=='TEVI'~'Legume',
+                             SPECIES=='ARBE' |
+                               SPECIES=='SCSC'  |
+                               SPECIES=='SOSE'~'Grass',
+                             SPECIES=='QULA' |
+                               SPECIES=='VAMY'~'Woody'))
+
+fn1a <- ggplot() +
+  stat_ellipse(data=ptraitave%>% filter(LDMC<800), aes(x =CN_RATIO ,y = LDMC, color=FuncGroup), level=.95, linewidth=1.25) +
+  geom_pointrange(data=exp4, aes(x =CN_RATIO_M ,y = LDMC_M, ymin=(LDMC_M-LDMC_SD),ymax=(LDMC_M+LDMC_SD))) +
+  geom_pointrange(data=exp4, aes(x =CN_RATIO_M ,y = LDMC_M, xmin=(CN_RATIO_M-CN_RATIO_SD),xmax=(CN_RATIO_M+CN_RATIO_SD))) +
+  geom_point(data=exp4, aes(x =CN_RATIO_M ,y = LDMC_M,fill=SUBFAMILY), pch=21, color = "black", stroke = 1, size=4) +
+  scale_fill_viridis(discrete = T,  option = "plasma") +
+  scale_color_viridis(discrete = T,  option = "D") +
+  theme_bw(base_size = 16) +
+  ylab("Weighted mean LDMC in diet (mg/g)") +
+  xlab("Weighted mean C:N in diet ") +
+  labs(fill = "Subfamily", color="Functional group")+
+  annotate(geom="text", label="A)", x=13, y=610, size=6)+
+  theme(
+    panel.border = element_rect(color="black", fill=NA, size=1.5),
+    panel.background = element_rect(fill = "transparent"), # bg of the panel
+    plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
+    panel.grid.major = element_blank(), # get rid of major grid
+    panel.grid.minor = element_blank(), # get rid of minor grid
+    legend.position = "none", # remove legend
+    legend.background = element_rect(fill = "transparent"), # get rid of legend bg
+    legend.box.background = element_rect(fill = "transparent"), # get rid of legend panel bg
+    legend.text = element_text(size=15));fn1a
+
+fn2a <- ggplot() +
+  stat_ellipse(data=ptraitave%>% filter(LDMC<800), aes(x =SLA ,y = LDMC, color=FuncGroup), level=.95, linewidth=1.25) +
+  geom_pointrange(data=exp4, aes(x=SLA_M ,y=LDMC_M,ymin=(LDMC_M-LDMC_SD),ymax=(LDMC_M+LDMC_SD))) +
+  geom_pointrange(data=exp4, aes(x=SLA_M ,y=LDMC_M,xmin=(SLA_M-SLA_SD),xmax=(SLA_M+SLA_SD))) +
+  geom_point(data=exp4, aes(x=SLA_M ,y=LDMC_M, fill=SUBFAMILY), pch=21, color = "black", stroke = 1, size=4) +
+  scale_fill_viridis(discrete = T,  option = "plasma") +
+  #geom_point(data=ptraitave %>% filter(LDMC<800), aes(x =SLA ,y = LDMC, color=FuncGroup), pch=16, alpha=.5) +
+  scale_color_viridis(discrete = T,  option = "D") +
+  theme_bw(base_size = 16) +
+  ylab("Weighted mean LDMC in diet (mg/g)") +
+  xlab("Weighted mean SLA in diet (mm^2/mg)") +
+  labs(fill = "Subfamily", color = "Functional group")+
+  annotate(geom="text", label="B)", x=2, y=610, size=6)+
+  theme(
+    panel.border = element_rect(color="black", fill=NA, size=1.5),
+    panel.background = element_rect(fill = "transparent"), # bg of the panel
+    plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
+    panel.grid.major = element_blank(), # get rid of major grid
+    panel.grid.minor = element_blank(), # get rid of minor grid
+    legend.position = "none", # remove legend
+    legend.background = element_rect(fill = "transparent"), # get rid of legend bg
+    legend.box.background = element_rect(fill = "transparent"), # get rid of legend panel bg
+    legend.text = element_text(size=15));fn2a
+
+#LDMC AND SLA
+fn3 <- ptrait2ave %>%
+  ggplot(aes(x =CN_RATIO_M ,y = LDMC_M)) +
+  geom_pointrange(data=ptrait2ave, aes(ymin=(LDMC_M-LDMC_SD),ymax=(LDMC_M+LDMC_SD))) +
+  geom_pointrange(data=ptrait2ave, aes(xmin=(CN_RATIO_M-CN_RATIO_SD),xmax=(CN_RATIO_M+CN_RATIO_SD))) +
+  geom_point(aes(fill=FuncGroup), pch=21, color = "black", stroke = 1, size=4) +
+  scale_fill_viridis(discrete = T,  option = "D") +
+  theme_bw(base_size = 16) +
+  ylab("Mean LDMC offered in trials") +
+  xlab("Mean C:N offered in trials") +
+  labs(fill = "Functional group")+
+  annotate(geom="text", label="C)", x=15, y=700, size=6)+
+  theme(
+    panel.border = element_rect(color="black", fill=NA, size=1.5),
+    panel.background = element_rect(fill = "transparent"), # bg of the panel
+    plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
+    panel.grid.major = element_blank(), # get rid of major grid
+    panel.grid.minor = element_blank(), # get rid of minor grid
+    legend.position = "none", # remove legend
+    legend.background = element_rect(fill = "transparent"), # get rid of legend bg
+    legend.box.background = element_rect(fill = "transparent"), # get rid of legend panel bg
+    legend.text = element_text(size=15));fn3
+
+fn4 <- ptrait2ave %>%
+  ggplot(aes(x =SLA_M ,y = LDMC_M)) +
+  geom_pointrange(data=ptrait2ave, aes(ymin=(LDMC_M-LDMC_SD),ymax=(LDMC_M+LDMC_SD))) +
+  geom_pointrange(data=ptrait2ave, aes(xmin=(SLA_M-SLA_SD),xmax=(SLA_M+SLA_SD))) +
+  geom_point(aes(fill=FuncGroup), pch=21, color = "black", stroke = 1, size=4) +
+  scale_fill_viridis(discrete = T,  option = "D") +
+  theme_bw(base_size = 16) +
+  ylab("Mean LDMC offered in trials") +
+  xlab("Mean SLA offered in trials") +
+  labs(fill = "Functional group")+
+  annotate(geom="text", label="D)", x=4, y=700, size=6)+
+  theme(
+    panel.border = element_rect(color="black", fill=NA, size=1.5),
+    panel.background = element_rect(fill = "transparent"), # bg of the panel
+    plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
+    panel.grid.major = element_blank(), # get rid of major grid
+    panel.grid.minor = element_blank(), # get rid of minor grid
+    legend.position = "none", # remove legend
+    legend.background = element_rect(fill = "transparent"), # get rid of legend bg
+    legend.box.background = element_rect(fill = "transparent"), # get rid of legend panel bg
+    legend.text = element_text(size=15));fn4
+
 feednicheplot <- fn1+fn2 +
   plot_layout(guides = "collect") & theme(legend.position = "top") 
+feedplantplot <- fn3+fn4 +
+  plot_layout(guides = "collect") & theme(legend.position = "top") 
+
+feedplotnew <- feednicheplot/feedplantplot
+ggsave("feedplotnew.tiff", feedplotnew, width=10, height=10, units="in", dpi=600, compression = "lzw", path="Outputs")
 
 
-ggsave("feednicheplot.tiff", feednicheplot, width=10, height=5, units="in", dpi=600, compression = "lzw")
+feednicheplota <- fn1a+fn2a +
+  plot_layout(guides = "collect") & theme(legend.position = "top",
+                                          legend.title = element_text(size=11), 
+                                          legend.text = element_text(size=10)) 
+
+ggsave("feednicheplota.tiff", feednicheplota, width=12, height=6, units="in", dpi=600, compression = "lzw", path="Outputs")
 
 
 
 #PLANT AND HERBIVORE TRAIT LINKAGES ####
 ## JOIN PLANT AND GRASSHOPPER TRAIT DATA ####
 t6<-t5a %>% filter(SPECIES!='EROB',SPECIES!='AMMY',SPECIES!='MEPI') %>% rename(CN_RATIO_GRASSHOPPER=CN_RATIO)
-exp5<-exp4 %>% select(-c(SLA_SD,LDMC_SD,CN_RATIO_SD)) %>% rename(SPECIES=GRASSHOPPER_SPECIES,CN_RATIO_PLANT=CN_RATIO_M)
+exp5<-exp4 %>% rename(SPECIES=GRASSHOPPER_SPECIES,CN_RATIO_PLANT=CN_RATIO_M)
 link<-full_join(t5a[-c(2,5,7),],exp5,by=c('SPECIES','SUBFAMILY')) %>% 
   select(SPECIES,SUBFAMILY,everything())
 
@@ -753,15 +885,16 @@ link2<-full_join(t5a,exp3a,by=c('SPECIES','SUBFAMILY')) %>%
 ## multivar feeding models ####
 
 mv_LDMC <- glmmTMB(LDMC ~ pc1 + (1|SUBFAMILY), data=link2 %>% filter(SEX!='U'))
-#mv_LDMC <- manova(cbind(CN_RATIO_PLANT, LDMC_M, SLA_M) ~ pc1 , data=link)
-anova(mv_LDMC, by="terms")
-plot(mv_LDMC)
-summary(mv_LDMC)
 
-Anova(mv_LDMC)
-check_collinearity(mv_LDMC)
-summary(mv_LDMC)
-summary.aov(mv_LDMC)
+mv_mod <- manova(cbind(CN_RATIO_PLANT, LDMC_M, SLA_M) ~ BV, data=link)
+anova(mv_mod, by="terms")
+plot(mv_mod)
+summary(mv_mod)
+
+Anova(mv_mod)
+check_collinearity(mv_mod)
+summary(mv_mod)
+summary.aov(mv_mod)
 
 ## trait link models ####
 

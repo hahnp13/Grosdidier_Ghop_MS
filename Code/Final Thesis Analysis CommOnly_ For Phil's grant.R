@@ -22,6 +22,7 @@ library(MuMIn) #Extract R^2 values from models generated using glmmTMB, (r.squar
 library(patchwork) #Piece plots together
 library(picante)
 library(ggeffects)
+library(spaa)
 
 #GRASSHOPPER TRAIT PCA####
 
@@ -29,10 +30,10 @@ library(ggeffects)
 t1<-read.csv("Data/GHopp Trait Measurements_2022_withCN2.csv")
 
 #Calculate FTs
-#Here, locomotory traits are scaled by body size.
+#Here, locomotory traits are scaled by body size. NOTE IS CALCULATION WAS CHANGED TO REMOVE HEAD_LENGTH FROM THE FIRST PRODUCT
 t2<-t1 %>% mutate(
   BV=(pi/4)*(BODY_LENGTH)*((DIAMETER_HEAD_WIDTH+DIAMETER_THORAX+DIAMETER_ABDOMEN_BASE+DIAMETER_ABDOMEN_TIP)/4)^2,
-    IS=((HEAD_LENGTH*HEAD_HEIGHT*DIAMETER_HEAD_WIDTH)*(LA/LI)*(1/RI)),
+    IS=((HEAD_HEIGHT*DIAMETER_HEAD_WIDTH)*(LA/LI)*(1/RI)),
   EYE_AREA=(EYE_WIDTH_DIAMETER*EYE_HEIGHT_DIAMETER),
   FEMUR_AREA=(FEMUR_LENGTH*FEMUR_WIDTH)/BV,
   TIBIA_LENGTH=TIBIA_LENGTH/BV,
@@ -577,7 +578,7 @@ emmeans(glmrao, ~TIME_OF_YEAR, infer=T)
 #FEEDING NICHE AND TRAIT MATCHING########################################################################
 #LOAD IN PLANT DATA AND PROCESS PLANT DATA
 sla<-read.csv('Data/Leaf SLA_2022.csv') %>% select(-c(DRY_WT,AREA))
-ldmc<-read.csv('Data/Plant CNP.csv') %>% select(-c(WET_WT,DRY_WT))
+ldmc<-read.csv('Data/Plant CNP.csv') %>% select(-c(WET_WT,DRY_WT)) 
 cndata<-read.csv('Data/Hahn Plant TC TN results march 2023.csv')
 
 cndata2<-cndata %>% mutate(TUBE.ID=as.numeric(gsub("^(\\d+).*", "\\1", cndata$Sample.ID)),
@@ -585,8 +586,9 @@ cndata2<-cndata %>% mutate(TUBE.ID=as.numeric(gsub("^(\\d+).*", "\\1", cndata$Sa
   select(-c(Date,X,X.1,wt..C,wt..N))
 
 cnldmc<-full_join(cndata2,ldmc,by = "TUBE.ID")
+## remove 2 points with very high LDMC
 ptrait<-full_join(cnldmc,sla,by = c('PLANT_ID','SPECIES')) %>% 
-  select(-Sample.ID) %>% select(TUBE.ID,PLANT_ID,SPECIES,everything()) %>% rename(TUBE_ID=TUBE.ID)
+  select(-Sample.ID) %>% select(TUBE.ID,PLANT_ID,SPECIES,everything()) %>% rename(TUBE_ID=TUBE.ID)%>% filter(LDMC<800)
 ptrait2<-ptrait %>% group_by(SPECIES) %>% 
   summarise(CN_RATIO=mean(CN_RATIO, na.rm=T), LDMC=mean(LDMC,na.rm=T), SLA=mean(SLA,na.rm=T))
 
@@ -639,84 +641,86 @@ exp3$Ba <- nmat3$Ba
 library(janitor)
 nmat4 <- t(nmat[1:16]) %>% row_to_names(row_number = 1)
 
+# FEEDING PLOTS FOR ACCA AND APSP ####
+
+exp3sub2 <- exp3 %>% filter(GRASSHOPPER_SPECIES=='ACCA'|GRASSHOPPER_SPECIES=='APSP'|GRASSHOPPER_SPECIES=='DIVI') %>% 
+  mutate(GRASSHOPPER_SPECIES = factor(GRASSHOPPER_SPECIES, levels=c("APSP", "ACCA", "DIVI"))) %>% 
+  select(GRASSHOPPER_SPECIES,ARBE:VAMY) %>% group_by(GRASSHOPPER_SPECIES) %>% 
+  summarize_all(mean) %>% ungroup() %>% select(-GRASSHOPPER_SPECIES) %>%  as.matrix() %>% t() %>% 
+  niche.overlap(., method="pianka")
+
+exp3sub <- exp3 %>% filter(GRASSHOPPER_SPECIES=='ACCA'|GRASSHOPPER_SPECIES=='APSP'|GRASSHOPPER_SPECIES=='DIVI') %>% 
+  select(-SUBFAMILY,-B,-Ba) %>% 
+  group_by(GRASSHOPPER_SPECIES, SEX, ID, MESOCOSM, FRASS_WT, CN_RATIO, LDMC, SLA) %>% 
+  pivot_longer(cols=ARBE:VAMY, names_to = "Plant", values_to = "Eaten") %>% 
+  mutate(PlantGuild= case_when(Plant=="ARBE" ~ "Grass", Plant=="SCSC" ~ "Grass", Plant=="SOSE" ~ "Grass", Plant=="AMAR" ~ "Forb", 
+         Plant=="CRAR" ~ "Forb", Plant=="ERTO" ~ "Forb", Plant=="ERAR" ~ "Forb", Plant=="PIGR" ~ "Forb", 
+         Plant=="SOOD" ~ "Forb", Plant=="STSY" ~ "Forb", Plant=="MOPU" ~ "Forb", Plant=="CHNI" ~ "Legume", 
+         Plant=="LEHI" ~ "Legume", Plant=="TEVI" ~ "Legume", Plant=="QULA" ~ "Woody", Plant=="VAMY" ~ "Woody" )) %>% 
+  mutate(GRASSHOPPER_SPECIES = factor(GRASSHOPPER_SPECIES, levels=c("APSP", "ACCA", "DIVI")))
+
+
+fplot <- ggplot(exp3sub,aes(x=GRASSHOPPER_SPECIES, y=sqrt(Eaten), fill=PlantGuild)) + 
+  geom_bar(stat = "identity", position="fill")+
+  scale_y_continuous("Percentage eaten", limits=c(0,1.2), breaks = c(0,.2,.4,.6,.8,1),labels = scales::percent )+
+  scale_x_discrete("Grasshopper species", labels=c("aptsph","achcar","dicvir"))+
+  scale_fill_brewer(palette = "Accent") +
+  theme_bw(base_size=18)+
+  theme(legend.position = "right")
+ggsave("feedplot2.tiff", fplot, width=8, height=6, units="in", dpi=600, compression = "lzw", path="Outputs")
+
+
 
 #RUN A MANOVA TO SEE IF GHOPP SPECIES DIFFERENTIATE THEIR FEEDING NICHES BASED ON EACH PLANT TRAIT
-fniche <- manova(cbind(SLA, LDMC,CN_RATIO) ~ SUBFAMILY+GRASSHOPPER_SPECIES, data=exp3)
+ 
+## subset to DeLuca species ####
+unique(exp3$GRASSHOPPER_SPECIES)
+exp3a <- exp3 %>% filter(GRASSHOPPER_SPECIES != "PAPH",GRASSHOPPER_SPECIES != "SPMA") %>% 
+  mutate(FeedingGuild=case_when(SUBFAMILY=="Gomphocerinae" ~ 'Grass',
+                                SUBFAMILY=="Cyrtacanthacrididae" ~ 'Mixed',
+                                SUBFAMILY=="Melanoplinae" ~ 'Mixed'))
+
+fniche <- manova(cbind(SLA, LDMC,CN_RATIO) ~ FeedingGuild+GRASSHOPPER_SPECIES, data=exp3a)
 summary(fniche)
 summary.aov(fniche)
 
-fn_sla <- glmmTMB(CN_RATIO ~ GRASSHOPPER_SPECIES + (1|SUBFAMILY), data=exp3)
+fn_sla <- glmmTMB(CN_RATIO ~ GRASSHOPPER_SPECIES + (1|SUBFAMILY), data=exp3a)
 Anova(fn_sla)
 summary(fn_sla)
 
 #THEY DO!
-fig1 <- ggplot(chem2plot , aes(fill=compound, x=paste(Region,Chemo,sep="-"), y=log(conc+1))) + 
-  geom_bar(position="stack",stat="identity")+
-  #facet_wrap(~Season) + 
-  #scale_fill_viridis(discrete=T,labels=c('Other','α-Thujene','Myrcene','Octen-3-ol','α-Terpinene', 'γ-Terpinene',
-  #                                      'p-Cymene','Thymoquinone','Carvacrol','Thymol'), name="Compound")+
-  scale_fill_jco(labels=c('Other','α-Thujene','Myrcene','Octen-3-ol','α-Terpinene', 'γ-Terpinene',
-                          'p-Cymene','Thymoquinone','Carvacrol','Thymol'), name="Compound")+
-  #ggtitle("B")+
-  xlab('Origin - Chemo')+ ylab('Terpene concentration (log(mg/g))')+
-  theme_bw(base_size = 24)
-fig1
-
-## reshape long
-exp3long <- exp3 %>% select(GRASSHOPPER_SPECIES, MESOCOSM,SUBFAMILY, ARBE:VAMY) %>% 
-  group_by(GRASSHOPPER_SPECIES, MESOCOSM,SUBFAMILY) %>% 
-  pivot_longer(cols=ARBE:VAMY, names_to = 'Plant_spp', values_to = 'Amount_cons_mm2') %>% 
-  group_by(Plant_spp,GRASSHOPPER_SPECIES,SUBFAMILY) %>% summarise(Amount_cons_mm2=mean(Amount_cons_mm2)) %>% 
-  filter(Plant_spp=='ARBE'| Plant_spp=='SCSC'|Plant_spp=='SOSE'|Plant_spp=='PIGR'|Plant_spp=='QULA'|
-           Plant_spp=='CHNI'|Plant_spp=='AMAR'|Plant_spp=='LEHI'|Plant_spp=='ERTO')
-
-ggplot(exp3long, aes(fill=Plant_spp, x=GRASSHOPPER_SPECIES, y=Amount_cons_mm2))+
-  geom_bar(position="fill",stat="identity")+
-  scale_fill_jco()+
-  theme_bw(base_size = 24)+
-  facet_wrap(~SUBFAMILY, scales = 'free_x')
-
 
 #NOW SUMMARIZE THE GRASSHOPPER DIETS WITHIN SPECIES AND SEPARATE GHOPPS BY SUBFAMILY
-exp4 <- exp3 %>% group_by(GRASSHOPPER_SPECIES, SUBFAMILY) %>% 
+exp4 <- exp3a %>% group_by(GRASSHOPPER_SPECIES, FeedingGuild) %>% 
   dplyr::summarize(SLA_M=mean(SLA), SLA_SD=sd(SLA),
             LDMC_M=mean(LDMC), LDMC_SD=sd(LDMC),
             CN_RATIO_M=mean(CN_RATIO), CN_RATIO_SD=sd(CN_RATIO))
 
 ## PLOT THE DIFFERENT TRAIT PAIRINGS ####
 #LDMC AND SLA
-fn1 <- exp4 %>%
-  ggplot(aes(x =CN_RATIO_M ,y = LDMC_M)) +
-  geom_pointrange(data=exp4, aes(ymin=(LDMC_M-LDMC_SD),ymax=(LDMC_M+LDMC_SD))) +
-  geom_pointrange(data=exp4, aes(xmin=(CN_RATIO_M-CN_RATIO_SD),xmax=(CN_RATIO_M+CN_RATIO_SD))) +
-  geom_point(aes(fill=SUBFAMILY), pch=21, color = "black", stroke = 1, size=4) +
-  scale_fill_viridis(discrete = T,  option = "plasma") +
-  theme_bw(base_size = 16) +
-  ylab("Weighted mean LDMC in diet (mg/g)") +
-  xlab("Weighted mean SLA in diet (mm^2/mg)") +
-  labs(fill = "Subfamily")+
-  annotate(geom="text", label="A)", x=20, y=530, size=6)+
-  theme(
-    panel.border = element_rect(color="black", fill=NA, size=1.5),
-    panel.background = element_rect(fill = "transparent"), # bg of the panel
-    plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
-    panel.grid.major = element_blank(), # get rid of major grid
-    panel.grid.minor = element_blank(), # get rid of minor grid
-    legend.position = "none", # remove legend
-    legend.background = element_rect(fill = "transparent"), # get rid of legend bg
-    legend.box.background = element_rect(fill = "transparent"), # get rid of legend panel bg
-    legend.text = element_text(size=15));fn1
+fn1 <- ggplot(data=exp4, aes(x =SLA_M*10 ,y = LDMC_M)) +
+  geom_pointrange(data=exp4, aes(x =SLA_M*10 ,y = LDMC_M, ymin=(LDMC_M-LDMC_SD),ymax=(LDMC_M+LDMC_SD)), linewidth=1) +
+  geom_pointrange(data=exp4, aes(x =SLA_M*10 ,y = LDMC_M, xmin=(SLA_M*10-SLA_SD*10),xmax=(SLA_M*10+SLA_SD*10)), linewidth=1) +
+  geom_point(data=exp3a, aes(x =SLA*10 ,y = LDMC, color=FeedingGuild), size=2, alpha=.5) +
+  geom_point(data=exp4, aes(x =SLA_M*10 ,y = LDMC_M, color=FeedingGuild), size=6) +
+  scale_color_viridis(discrete=T, option="D", begin=.2, end=.8, direction=-1, name="Feeding guild")+
+  theme_bw(base_size = 20) +
+  ylab("Weighted mean LDMC in diet") +
+  xlab("Weighted mean SLA in diet") +
+  labs(fill = "Feeding guild")+
+  theme(legend.position = c(.25,.18))
+  
 
 fn2 <- exp4 %>%
   ggplot(aes(x =SLA_M ,y = LDMC_M)) +
   geom_pointrange(data=exp4, aes(ymin=(LDMC_M-LDMC_SD),ymax=(LDMC_M+LDMC_SD))) +
   geom_pointrange(data=exp4, aes(xmin=(SLA_M-SLA_SD),xmax=(SLA_M+SLA_SD))) +
-  geom_point(aes(fill=SUBFAMILY), pch=21, color = "black", stroke = 1, size=4) +
+  geom_point(aes(fill=FeedingGuild), pch=21, color = "black", stroke = 1, size=4) +
   scale_fill_viridis(discrete = T,  option = "plasma") +
   theme_bw(base_size = 16) +
   ylab("Weighted mean LDMC in diet (mg/g)") +
   xlab("Weighted mean SLA in diet (mm^2/mg)") +
-  labs(fill = "Subfamily")+
+  labs(fill = "Feeding guild")+
   annotate(geom="text", label="B)", x=6, y=530, size=6)+
   theme(
     panel.border = element_rect(color="black", fill=NA, size=1.5),
@@ -733,20 +737,94 @@ feednicheplot <- fn1+fn2 +
   plot_layout(guides = "collect") & theme(legend.position = "top") 
 
 
-ggsave("feednicheplot.tiff", feednicheplot, width=10, height=5, units="in", dpi=600, compression = "lzw")
+ggsave("feednicheplot.tiff", feednicheplot, width=10, height=5, units="in", dpi=600, compression = "lzw", path="Outputs")
+
+## PCA ON DIET CONTENT ####
+head(exp3a)
+
+feed.mds <- metaMDS(exp3a[6:21], distance = 'bray')
+plot(feed.mds)
+scores(feed.mds)
+
+exp3a$NMDS1 <- scores(feed.mds)$sites[,1]
+exp3a$NMDS2 <- scores(feed.mds)$sites[,2]
+
+### nmds plot #####
+pcrot <- scores(feed.mds)$species %>% as.data.frame() %>% rownames_to_column(var="Plant")
+
+nmdsfig <- ggplot() + xlab("NMDS1")+ylab("NMDS2")+ 
+  stat_ellipse(data=exp3a, geom="polygon" ,aes(x=NMDS1,y=NMDS2, group=FeedingGuild),
+               color="grey", lwd=1, alpha=.05, level=.66)+
+  geom_point(data=exp3a, aes(x=NMDS1, y=NMDS2, color=FeedingGuild), size=2,alpha=.5) +
+  geom_point(data=exp3a %>% group_by(GRASSHOPPER_SPECIES,FeedingGuild) %>% 
+               summarise(NMDS1=mean(NMDS1), NMDS2=mean(NMDS2)), 
+             aes(x=NMDS1, y=NMDS2, color=FeedingGuild), size=6) +
+  #scale_fill_manual(values=c("darkgoldenrod1","dodgerblue"), labels=c("Low productivity","High productivity")) +
+  #scale_color_manual(values=c("darkgoldenrod1","dodgerblue"), labels=c("Low productivity","High productivity")) +
+  #geom_segment(data=pcrot, aes(x=0, y=0,xend=NMDS1*.5,yend=NMDS2*.5), arrow=arrow(length=unit(0.03, "npc")), color='black', lwd=1)+
+  #geom_segment(data=pcrot, aes(x=0, y=0,xend=NMDS1*.5,yend=NMDS2*.5), arrow=arrow(length=unit(0.03, "npc")), color='black', lwd=1)+
+  scale_color_viridis(discrete=T, option="D", begin=.2, end=.8, direction=-1, name="Feeding guild")+
+  #geom_text(data=pcrot, aes(x=NMDS1*.5, y=NMDS2*.5, label=Plant), fontface="bold", color="BLACK", size=5)+
+  #geom_text(data=pcrot, aes(x=NMDS1*.5, y=NMDS2*.6, label=compound), fontface="bold", color="BLACK", size=4)+
+  #xlim(-1.3,1.2)+
+  theme_bw(base_size = 20)+
+  theme(legend.position="none")
+nmdsfig
+
+feedplot <- fplot +nmdsfig+fn1 #+ plot_annotation(tag_levels = 'A')
 
 
+ggsave("feedplot.tiff", feedplot, width=20, height=6, units="in", dpi=600, compression = "lzw", path="Outputs")
+
+
+
+feed.mdsa <- metaMDS(exp3a[23:25], distance = 'euclidean')
+plot(feed.mdsa)
+scores(feed.mdsa)
+
+exp3a$NMDS1t <- scores(feed.mdsa)$sites[,1]
+exp3a$NMDS2t <- scores(feed.mdsa)$sites[,2]
+
+
+### nmds plot #####
+pcrot1 <- scores(feed.mdsa)$species %>% as.data.frame() %>% rownames_to_column(var="PlantTrait")
+
+nmdsfig1 <- ggplot() + xlab("NMDS1t")+ylab("NMDS2t")+ 
+  #stat_ellipse(data=chem1, geom="polygon" ,aes(x=NMDS1,y=NMDS2, color=Region), lwd=1, alpha=.25)+
+  geom_point(data=exp3a, aes(x=NMDS1t, y=NMDS2t, color=FeedingGuild), size=3,alpha=.5) +
+  #scale_fill_manual(values=c("darkgoldenrod1","dodgerblue"), labels=c("Low productivity","High productivity")) +
+  #scale_color_manual(values=c("darkgoldenrod1","dodgerblue"), labels=c("Low productivity","High productivity")) +
+  #geom_segment(data=pcrot, aes(x=0, y=0,xend=NMDS1*.5,yend=NMDS2*.5), arrow=arrow(length=unit(0.03, "npc")), color='black', lwd=1)+
+  geom_segment(data=pcrot1, aes(x=0, y=0,xend=NMDS1*.5,yend=NMDS2*.5), arrow=arrow(length=unit(0.03, "npc")), color='black', lwd=1)+
+  scale_color_viridis(discrete=T, option="D", begin=.2, end=.8, direction=-1, name="Feeding guild")+
+  geom_text(data=pcrot1, aes(x=NMDS1*.5, y=NMDS2*.5, label=PlantTrait), fontface="bold", color="BLACK", size=5)+
+  #geom_text(data=pcrot, aes(x=NMDS1*.5, y=NMDS2*.6, label=compound), fontface="bold", color="BLACK", size=4)+
+  #xlim(-1.3,1.2)+
+  theme_bw(base_size = 24)
+nmdsfig1
+
+
+t.pca <- prcomp(sqrt(exp3a[6:21]), scale = TRUE)
+t.pcav <- t.pca$rotation %>% as_tibble() %>% rownames_to_column(var="Plant") %>%
+  mutate(Plant = c('ARBE', 'SCSC', 'SOSE', 'AMAR', 'CRAR', 'ERTO', 'ERAR', 'PIGR', 'SOOD', 'STSY', 'MOPU', 
+                   'CHNI', 'LEHI', 'TEVI', 'QULA', 'VAMY'))
+
+summary(t.pca)
+exp3a$pc1 <- t.pca$x[,1]
+exp3a$pc2 <- t.pca$x[,2]
+
+biplot(t.pca)
 
 #PLANT AND HERBIVORE TRAIT LINKAGES ####
 ## JOIN PLANT AND GRASSHOPPER TRAIT DATA ####
 t6<-t5a %>% filter(SPECIES!='EROB',SPECIES!='AMMY',SPECIES!='MEPI') %>% rename(CN_RATIO_GRASSHOPPER=CN_RATIO)
 exp5<-exp4 %>% select(-c(SLA_SD,LDMC_SD,CN_RATIO_SD)) %>% rename(SPECIES=GRASSHOPPER_SPECIES,CN_RATIO_PLANT=CN_RATIO_M)
-link<-full_join(t5a[-c(2,5,7),],exp5,by=c('SPECIES','SUBFAMILY')) %>% 
-  select(SPECIES,SUBFAMILY,everything())
+link<-full_join(t5a[-c(2,5,7),],exp5,by=c('SPECIES')) %>% 
+  select(SPECIES,FeedingGuild,everything())
 
-exp3a <- exp3 %>% mutate(SPECIES=GRASSHOPPER_SPECIES) %>% 
-  select(SPECIES,SUBFAMILY,SEX,MESOCOSM,CN_RATIO,LDMC,SLA) 
-link2<-full_join(t5a,exp3a,by=c('SPECIES','SUBFAMILY')) %>% 
+exp3b <- exp3a %>% mutate(SPECIES=GRASSHOPPER_SPECIES) %>% 
+  select(SPECIES,FeedingGuild,SEX,MESOCOSM,CN_RATIO,LDMC,SLA) 
+link2<-full_join(t5a,exp3b,by=c('SPECIES')) %>% 
   select(SPECIES,SUBFAMILY,everything())
 
 
@@ -803,6 +881,14 @@ simulateResiduals(lm.bv_CN, plot=T)
 hist(resid(lm.bv_CN))
 
 ### trait link plots ####
+llmm <- lm(LDMC_M ~ IS, data=link)
+summary(llmm)
+
+ggplot(link %>% filter(LDMC_M<420), aes(x=IS, y=LDMC_M))+
+  geom_point()+
+  geom_smooth(method="lm")+
+  theme_bw()
+
 ISLD_tab1 <- ggpredict(lm.IS_LDMC, terms = c("IS [2.5:4.6, by=.01]"), 
                        ci.lvl = .95, type = "fe") %>% as.data.frame() 
 
