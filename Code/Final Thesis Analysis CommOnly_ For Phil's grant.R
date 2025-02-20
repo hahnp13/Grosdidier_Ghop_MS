@@ -536,7 +536,7 @@ comm_roa2 <- comm_roa %>% group_by(TIME_OF_YEAR,SITE,TIME_SINCE_FIRE_DAYS,FIRE_F
   pivot_longer(cols=5:9, values_to = "SES", names_to = "Trait")
 
 
-trait_names <- c(`SES_All` = "All traits", `SES_BV`="Body Volume", `SES_CN`="C:N", `SES_IS`="Incisor strength",
+trait_names <- c(`SES_All` = "All traits", `SES_BV`="Body volume", `SES_CN`="C:N", `SES_IS`="Incisor strength",
                  `SES_SF`="Subfamily")
 
 raoSESfig <- sesTrait <- ggplot(comm_roa2, aes(x=TIME_OF_YEAR, y=SES, color=TIME_OF_YEAR)) + 
@@ -545,7 +545,7 @@ raoSESfig <- sesTrait <- ggplot(comm_roa2, aes(x=TIME_OF_YEAR, y=SES, color=TIME
   geom_hline(yintercept = 0, linetype="dashed")+
   scale_color_viridis(option="G", discrete=T, direction=-1, end=.6, name = "Time of year", labels=c("July","Sept."))+
   scale_y_continuous(name="Standardized Effect Size \n Rao's Func. Disp.")+
-  #scale_x_discrete(name = "Time of year", labels=c("July","Sept."))+
+  scale_x_discrete(name = "Time of year", labels=c("July","Sept."))+
   facet_wrap(~Trait, labeller=as_labeller(trait_names))+
   theme_bw(base_size = 16)+ 
   theme(legend.position = c(0.85, 0.2), # c(0,0) bottom left, c(1,1) top-right.
@@ -557,7 +557,7 @@ raoSESFirefig <- sesTrait <- ggplot(comm_roa2, aes(x=TIME_SINCE_FIRE_DAYS, y=SES
   geom_hline(yintercept = 0, linetype="dashed")+
   scale_color_viridis(option="G", discrete=T, direction=-1, end=.6, name = "Time of year", labels=c("July","Sept."))+
   scale_y_continuous(name="Standardized Effect Size \n Rao's Func. Disp.")+
-  #scale_x_discrete(name = "Time of year", labels=c("July","Sept."))+
+  scale_x_discrete(name = "Time of year", labels=c("July","Sept."))+
   facet_wrap(~Trait, labeller=as_labeller(trait_names))+
   theme_bw(base_size = 16)+ 
   theme(legend.position = c(0.85, 0.2), # c(0,0) bottom left, c(1,1) top-right.
