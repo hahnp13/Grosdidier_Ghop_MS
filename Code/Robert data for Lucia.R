@@ -26,25 +26,51 @@ comm0check <-comm %>%
   select(-c(HABITAT,GENUS,SEX,AGE,IDed,MORPH.CODE,SPP.NOTES)) %>% 
   group_by(YEAR,TIME.OF.YEAR,SITE,SPECIES) %>% 
   summarise(X..INDV=sum(X..INDV)) %>% 
-  pivot_wider(names_from = c(YEAR,SPECIES), values_from = X..INDV) %>% 
+  pivot_wider(names_from = c(YEAR,TIME.OF.YEAR,SPECIES), values_from = X..INDV) %>% 
   replace(is.na(.),0)
 
 # write.csv(comm0check, "Outputs/Ordway_AcacarAptsph.csv")
+head(comm0check)
 
-ggplot(comm0check, aes(x=Y2021_ACCA, y=Y2022_ACCA)) +
-  geom_point()+
-  geom_smooth(method="glm", method.args=list(family=poisson))+
-  theme_bw(base_size = 20)+
-  facet_wrap(~TIME.OF.YEAR, scales="free")
 
-ggplot(comm0check, aes(x=Y2021_ACCA, y=Y2022_ACCA)) +
+## 2022 Early vs Late season ####
+ggplot(comm0check, aes(x=Y2022_EARLY_APSP, y=Y2022_LATE_APSP)) +
   geom_point()+
-  geom_smooth(method="glm", method.args=list(family=poisson))+
-  theme_bw(base_size = 20)+
-  facet_wrap(~TIME.OF.YEAR, scales="free")
+  geom_smooth(method="glm", formula=y~x+I(x^2), method.args=list(family=poisson))+
+  theme_bw(base_size = 20)
 
-ggplot(comm0check, aes(x=Y2021_APSP, y=Y2022_APSP)) +
+ggplot(comm0check, aes(x=Y2022_EARLY_ACCA, y=Y2022_LATE_ACCA)) +
   geom_point()+
-  geom_smooth(method="glm", method.args=list(family=poisson))+
-  theme_bw(base_size = 20)+
-  facet_wrap(~TIME.OF.YEAR, scales="free")
+  geom_smooth(method="glm", formula=y~x+I(x^2), method.args=list(family=poisson))+
+  theme_bw(base_size = 20)
+
+ggplot(comm0check, aes(x=Y2021_EARLY_AMMY, y=Y2021_LATE_AMMY)) +
+  geom_point()+
+  geom_smooth(method="glm", formula=y~x+I(x^2), method.args=list(family=poisson))+
+  theme_bw(base_size = 20)
+
+ggplot(comm0check, aes(x=Y2021_EARLY_MERO, y=Y2021_LATE_MERO)) +
+  geom_point()+
+  geom_smooth(method="glm", formula=y~x+I(x^2), method.args=list(family=poisson))+
+  theme_bw(base_size = 20)
+
+ggplot(comm0check, aes(x=Y2021_EARLY_ODAP, y=Y2021_LATE_ODAP)) +
+  geom_point()+
+  geom_smooth(method="glm", formula=y~x+I(x^2), method.args=list(family=poisson))+
+  theme_bw(base_size = 20)
+
+## between years
+
+ggplot(comm0check, aes(x=Y2021_EARLY_APSP, y=Y2021_LATE_APSP)) +
+  geom_point()+
+  geom_smooth(method="glm", formula=y~x+I(x^2), method.args=list(family=poisson))+
+  theme_bw(base_size = 20)
+
+
+ggplot(comm0check, aes(x=Y2021_LATE_APSP, y=Y2022_LATE_APSP)) +
+  geom_point()+
+  geom_smooth(method="glm", formula=y~x, method.args=list(family=poisson))+
+  theme_bw(base_size = 20)
+
+
+
