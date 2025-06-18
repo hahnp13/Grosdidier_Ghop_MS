@@ -667,11 +667,26 @@ library(janitor)
 nmat4 <- t(nmat[1:16]) %>% row_to_names(row_number = 1)
 
 # FEEDING PLOTS FOR ACCA AND APSP ####
+## Microniche Breadth ####
+nmat <- exp3 %>% filter(GRASSHOPPER_SPECIES == 'ACCA' | GRASSHOPPER_SPECIES == 'APSP'| GRASSHOPPER_SPECIES == 'DIVI'  ) %>% 
+  dplyr::select(GRASSHOPPER_SPECIES, ARBE:VAMY) %>% 
+  rowwise() %>% 
+  mutate(Consumed=sum(c_across(2:17)))
 
-exp3sub2 <- exp3 %>% filter(GRASSHOPPER_SPECIES=='ACCA'|GRASSHOPPER_SPECIES=='APSP'|GRASSHOPPER_SPECIES=='DIVI') %>% 
+nmat2 <- (nmat[2:17]/nmat$Consumed)^2
+nmat3 <- nmat2 %>% rowwise() %>% 
+  mutate(B=1/(sum(c_across(everything()))), Ba=(B-1)/(16-1))
+exp3$B <- nmat3$B
+exp3$Ba <- nmat3$Ba
+
+library(janitor)
+nmat4 <- t(nmat[1:16]) %>% row_to_names(row_number = 1)
+
+exp3sub2 <- nmat %>%  
   mutate(GRASSHOPPER_SPECIES = factor(GRASSHOPPER_SPECIES, levels=c("APSP", "ACCA", "DIVI"))) %>% 
   select(GRASSHOPPER_SPECIES,ARBE:VAMY) %>% group_by(GRASSHOPPER_SPECIES) %>% 
-  summarize_all(mean) %>% ungroup() %>% select(-GRASSHOPPER_SPECIES) %>%  as.matrix() %>% t() %>% 
+  #summarize_all(mean) %>% 
+  ungroup() %>% select(-GRASSHOPPER_SPECIES) %>%  as.matrix() %>% t() %>% 
   niche.overlap(., method="pianka")
 
 exp3sub <- exp3 %>% filter(GRASSHOPPER_SPECIES=='ACCA'|GRASSHOPPER_SPECIES=='APSP'|GRASSHOPPER_SPECIES=='DIVI') %>% 
