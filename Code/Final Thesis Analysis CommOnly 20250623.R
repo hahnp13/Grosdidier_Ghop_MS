@@ -104,24 +104,6 @@ t4<-t3 %>% mutate(SUBFAMILY=case_when(SPECIES=='ACCA' |
                                         SPECIES=='SPMA'~'Oedipodinae')) 
                                      #SPECIES=='ODAP'~'Tettigoniidae')) 
 
-ggplot(t4 %>% arrange(SUBFAMILY), aes(x=SUBFAMILY, y=BV, color=SPECIES))+
-  geom_boxplot(outlier.shape = NA)+
-  #geom_jitter(width=.2, height=0)+
-  scale_color_viridis(discrete = T, direction = -1, end=.8)+
-  theme_bw(base_size = 16)
-
-ggplot(t4 %>% arrange(SUBFAMILY), aes(x=SUBFAMILY, y=IS, color=SPECIES))+
-  geom_boxplot(outlier.shape = NA)+
-  #geom_jitter(width=.2, height=0)+
-  scale_color_viridis(discrete = T, direction = -1, end=.8)+
-  theme_bw(base_size = 16)
-
-ggplot(t4 %>% arrange(SUBFAMILY), aes(x=SUBFAMILY, y=CN_RATIO, color=SPECIES))+
-  geom_boxplot()+
-  #geom_jitter(width=.2, height=0)+
-  scale_color_viridis(discrete = T, direction = -1, end=.8)+
-  theme_bw(base_size = 16)
-
 ggpairs(t4[c(5,6,9)])+theme_bw(base_size = 16)
 
 #Right skewed data, specifically IS and BV were log transformed. Distribution now follows Gaussian trend.
@@ -158,6 +140,8 @@ summary(t.pca)
 t4a$pc1 <- t.pca$x[,1]
 t4a$pc2 <- t.pca$x[,2]
 
+
+### PCA Used in manuscript ####
 t5a<-t4a %>% group_by(SPECIES,SUBFAMILY) %>%
   summarise(BV=mean(BV,na.rm=T),IS=mean(IS,na.rm=T),CN_RATIO=mean(CN_RATIO,na.rm=T),
             pc1=mean(pc1,na.rm=T),pc2=mean(pc2,na.rm=T))
@@ -198,8 +182,10 @@ t.pca_alltraits2<-ggplot() +
   theme_bw(base_size = 24) +
   theme(panel.grid = element_blank());t.pca_alltraits2
 
-
+### Figure 2 in manuscript ####
 ggsave("t.pca_alltraits2.tiff", t.pca_alltraits, width=10, height=6, units="in", dpi=600, compression = "lzw", path="Outputs")
+
+## alt Fig 2
 ggsave("t.pca_reduced2.tiff", t.pca_reduced, width=13, height=10, units="in", dpi=600, compression = "lzw", path="Outputs")
 
 ## MANOVA on functional traits ####
@@ -207,48 +193,11 @@ tniche <- manova(cbind(BV, IS,CN_RATIO) ~ SUBFAMILY+SPECIES, data=t4a)
 summary(tniche)
 summary.aov(tniche)
 
-t_bv0 <- glmmTMB(BV ~ 1 , data=t4)
-t_bv1 <- glmmTMB(BV ~ 1 + (1|SPECIES), data=t4)
-t_bv2 <- glmmTMB(BV ~ 1 + (1|SUBFAMILY/SPECIES), data=t4)
-anova(t_bv0,t_bv1,t_bv2)
-
-t_is0 <- glmmTMB(IS ~ 1 , data=t4)
-t_is1 <- glmmTMB(IS ~ 1 + (1|SPECIES), data=t4)
-t_is2 <- glmmTMB(IS ~ 1 + (1|SUBFAMILY), data=t4)
-t_is3 <- glmmTMB(IS ~ 1 + (1|SUBFAMILY/SPECIES), data=t4)
-anova(t_is0,t_is1,t_is2,t_is3)
-summary(t_is3)
-
-t_bv0 <- glmmTMB(CN_RATIO ~ 1 , data=t4)
-t_bv1 <- glmmTMB(CN_RATIO ~ 1 + (1|SPECIES), data=t4)
-t_bv2 <- glmmTMB(CN_RATIO ~ 1 + (1|SUBFAMILY/SPECIES), data=t4)
-anova(t_bv0,t_bv1,t_bv2)
-
-
-t_bv <- glmmTMB(CN_RATIO ~ SUBFAMILY+SPECIES, data=t4)
-Anova(t_bv)
-summary(t_bv)
-
 
 #COMMUNITY SAMPLING ANALYSIS####
 comm<-read.csv('Data/Grasshopper ID_nymphs ided_05202023.csv')
 fire<-read.csv('Data/Burn_by_Site Data_with frequency_05232023.csv')
 temp<-read.csv('Data/OSBS_Site Temp Data.csv')
-
-## acharum and apteno abundance ####
-comm0check <-comm %>% 
-  mutate(DATE=as.Date(DATE, format = '%m/%d/%Y')) %>% 
-  filter(DATE > as.Date('2022-01-01'), IDed=='Y') %>% 
-  mutate(SUBFAMILY=ifelse(GENUS=='MELANOPLUS','MEL',SUBFAMILY),
-         SPECIES=paste(substr(GENUS,1,2),substr(SPECIES,1,2),sep = "")) %>% 
-  dplyr::select(-c(DATE,HABITAT,GENUS,SEX,AGE,IDed,MORPH.CODE,SPP.NOTES)) %>% 
-  group_by(TIME.OF.YEAR,SITE,SPECIES) %>% 
-  summarise(X..INDV=sum(X..INDV)) %>% 
-  pivot_wider(names_from = SPECIES, values_from = X..INDV) %>% 
-  replace(is.na(.),0) %>%
-  filter(TIME.OF.YEAR=='EARLY') %>% 
-  select(TIME.OF.YEAR, SITE, ACCA, APSP)
-write.csv(comm0check, "Outputs/Ordway_AcacarAptsph.csv")
 
 #FUNCTIONAL TRAIT ANALYSIS ON COMMUNITY DATA
 comm1<-comm %>% 
@@ -558,29 +507,20 @@ raoSESfig <- sesTrait <- ggplot(comm_roa2, aes(x=TIME_OF_YEAR, y=SES, color=TIME
   theme(legend.position = c(0.85, 0.2), # c(0,0) bottom left, c(1,1) top-right.
         legend.background = element_rect(fill = "white", colour = NA))
 
-raoSESFirefig <- sesTrait <- ggplot(comm_roa2, aes(x=TIME_SINCE_FIRE_DAYS, y=SES, color=TIME_OF_YEAR)) + 
-  geom_point() +
-  geom_smooth(method="lm")+
-  geom_hline(yintercept = 0, linetype="dashed")+
-  scale_color_viridis(option="G", discrete=T, direction=-1, end=.6, name = "Time of year", labels=c("July","Sept."))+
-  scale_y_continuous(name="Standardized Effect Size \n Rao's Func. Disp.")+
-  #scale_x_discrete(name = "Time of year", labels=c("July","Sept."))+
-  facet_wrap(~Trait, labeller=as_labeller(trait_names))+
-  theme_bw(base_size = 16)+ 
-  theme(legend.position = c(0.85, 0.2), # c(0,0) bottom left, c(1,1) top-right.
-        legend.background = element_rect(fill = "white", colour = NA))
-
+### Figure 3 in manuscript ####
 ggsave("raoSESfig_revised.tiff", raoSESfig, width=8, height=6, units="in", dpi=600, compression = "lzw", path="Outputs")
 
 
+### Model for analysis -- pvalues may differ from manuscript due to randomization procedure ####
 glmrao0 <- glmmTMB(SES ~ Trait*TIME_OF_YEAR + (1|SITE/Trait), data=comm_roa2, dispformula = ~Trait)
 #glmrao <- glmmTMB(SES ~ Trait*TIME_OF_YEAR + (1|SITE/TIME_OF_YEAR), data=comm_roa2)
 #anova(glmrao0,glmrao)
 Anova(glmrao0)
 summary(glmrao0)
 
-emmeans(glmrao0, ~Trait|TIME_OF_YEAR, infer=T)
+emmeans(glmrao0, ~TIME_OF_YEAR, infer=T)
 emmeans(glmrao0, ~Trait, infer=T)
+
 
 #FEEDING NICHE AND TRAIT MATCHING########################################################################
 #LOAD IN PLANT DATA AND PROCESS PLANT DATA
@@ -615,29 +555,6 @@ ggpairs(ptrait2[2:4])
 # LOAD IN FEEDING TRIAL DATA ####
 exp<-read.csv('Data/GHopp Feeding Trials_2022.csv')
 
-## check ACCA and APSP data ####
-aadat <- exp %>% filter(GRASSHOPPER_SPECIES == 'ACCA' | GRASSHOPPER_SPECIES == 'APSP'  ) %>% 
-  pivot_longer(cols=ARBE:VAMY, names_to = "PlantSpp", values_to = "Amt_Eaten")
-
-aadatsum <- aadat %>% group_by(GRASSHOPPER_SPECIES, PlantSpp) %>% summarise(Amt_Eaten_m = mean(Amt_Eaten, na.rm=T))
-## Microniche Breadth ####
-nmat1 <- exp %>% filter(GRASSHOPPER_SPECIES == 'ACCA' | GRASSHOPPER_SPECIES == 'APSP'| GRASSHOPPER_SPECIES == 'DIVI'  ) 
-
-nmat <- nmat1 %>% 
-  dplyr::select(GRASSHOPPER_SPECIES, ARBE:VAMY) %>% 
-  rowwise() %>% 
-  mutate(Consumed=sum(c_across(2:17)))
-
-nmat2 <- (nmat[2:17]/nmat$Consumed)
-nmat3 <- nmat2 %>% rowwise() %>% 
-  mutate(B=1/(sum(c_across(everything()))), Ba=(B-1)/(16-1))
-nmat$B <- nmat3$B
-nmat$Ba <- nmat3$Ba
-
-library(janitor)
-nmat4 <- t(nmat[1:16]) %>% row_to_names(row_number = 1)
-
-
 
 #CALCULATE CWM PLANT FUNCTIONAL TRAIT IN GHOP DIET
 ptrait3<-ptrait2 %>% remove_rownames %>% column_to_rownames(var="SPECIES") %>% as.matrix()
@@ -657,23 +574,8 @@ exp3 <- cbind(exp,functraits) %>%
                              GRASSHOPPER_SPECIES=='PAPH' |
                                GRASSHOPPER_SPECIES=='SPMA'~'Oedipodinae'))
 
-## Microniche Breadth ####
-nmat <- exp3 %>% filter(GRASSHOPPER_SPECIES == 'ACCA' | GRASSHOPPER_SPECIES == 'APSP'| GRASSHOPPER_SPECIES == 'DIVI'  ) %>% 
-  dplyr::select(GRASSHOPPER_SPECIES, ARBE:VAMY) %>% 
-  rowwise() %>% 
-  mutate(Consumed=sum(c_across(2:17)))
 
-nmat2 <- (nmat[2:17]/nmat$Consumed)^2
-nmat3 <- nmat2 %>% rowwise() %>% 
-  mutate(B=1/(sum(c_across(everything()))), Ba=(B-1)/(16-1))
-exp3$B <- nmat3$B
-exp3$Ba <- nmat3$Ba
-
-library(janitor)
-nmat4 <- t(nmat[1:16]) %>% row_to_names(row_number = 1)
-
-
-#RUN A MANOVA TO SEE IF GHOPP SPECIES DIFFERENTIATE THEIR FEEDING NICHES BASED ON EACH PLANT TRAIT
+## MANOVA TO SEE IF GHOPP SPECIES DIFFERENTIATE THEIR FEEDING NICHES BASED ON EACH PLANT TRAIT ####
 fniche <- manova(cbind(SLA, LDMC,CN_RATIO) ~ SUBFAMILY+GRASSHOPPER_SPECIES, data=exp3)
 summary(fniche)
 summary.aov(fniche)
@@ -683,17 +585,6 @@ Anova(fn_sla)
 summary(fn_sla)
 
 #THEY DO!
-fig1 <- ggplot(chem2plot , aes(fill=compound, x=paste(Region,Chemo,sep="-"), y=log(conc+1))) + 
-  geom_bar(position="stack",stat="identity")+
-  #facet_wrap(~Season) + 
-  #scale_fill_viridis(discrete=T,labels=c('Other','α-Thujene','Myrcene','Octen-3-ol','α-Terpinene', 'γ-Terpinene',
-  #                                      'p-Cymene','Thymoquinone','Carvacrol','Thymol'), name="Compound")+
-  scale_fill_jco(labels=c('Other','α-Thujene','Myrcene','Octen-3-ol','α-Terpinene', 'γ-Terpinene',
-                          'p-Cymene','Thymoquinone','Carvacrol','Thymol'), name="Compound")+
-  #ggtitle("B")+
-  xlab('Origin - Chemo')+ ylab('Terpene concentration (log(mg/g))')+
-  theme_bw(base_size = 24)
-fig1
 
 ## reshape long
 library(ggsci)
@@ -891,7 +782,10 @@ feednicheplota <- fn1a+fn2a +
                                           legend.title = element_text(size=11), 
                                           legend.text = element_text(size=10)) 
 
+### Figure 4 from manuscript ####
 ggsave("Figure4.tiff", feednicheplot, width=12, height=6, units="in", dpi=600, compression = "lzw", path="Outputs")
+
+### elaborate version of Fig 4 
 ggsave("feednicheplota.tiff", feednicheplota, width=12, height=6, units="in", dpi=600, compression = "lzw", path="Outputs")
 
 
@@ -1066,12 +960,17 @@ ghoppBV_CN <- link2 %>% ggplot() +
     legend.text = element_text(size=15));ghoppBV_CN
 
 linkplot <- ghoppIS_LDMC + ghoppCN_CN+ghoppBV_CN
-  plot_layout(guides = "collect") #& theme(legend.position = "top")
+  #plot_layout(guides = "collect") #& theme(legend.position = "top")
 
+### Figure 5 from paper #####
 ggsave("linkplot.tiff", linkplot, width=15, height=6, units="in", dpi=600, compression = "lzw", path="Outputs")
 
 
+
+
+# OLD CODE BELOW ######
 ggsave("feednicheplot.tiff", feednicheplot, width=10, height=5, units="in", dpi=600, compression = "lzw")
+
 ## trait link plots
 IS_LDMC2 <- link2 %>% ggplot() +
   geom_smooth(data=link2 %>% filter(LDMC<550),aes(x=IS, y=LDMC), method='glm') +
